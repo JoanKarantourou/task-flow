@@ -1,7 +1,31 @@
+using Microsoft.EntityFrameworkCore;
+using TaskFlow.Infrastructure.Persistence;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
+// Configure Database Context
+// Register ApplicationDbContext with dependency injection
+// This tells EF Core to use PostgreSQL with our connection string
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+{
+    // Get connection string from appsettings.json
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+    // Configure to use PostgreSQL with Npgsql provider
+    options.UseNpgsql(connectionString);
+
+    // Enable sensitive data logging in development for debugging
+    // Shows parameter values in SQL logs (useful for learning)
+    // WARNING: Don't enable in production (security risk)
+    if (builder.Environment.IsDevelopment())
+    {
+        options.EnableSensitiveDataLogging();
+    }
+});
+
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -16,29 +40,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+app.UseAuthorization();
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast")
-.WithOpenApi();
+app.MapControllers();
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}

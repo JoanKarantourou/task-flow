@@ -1,0 +1,56 @@
+# Docker Compose configuration for TaskFlow development environment
+# This file defines all the services (containers) needed to run the application locally
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database Service
+  # This is our primary database where all TaskFlow data will be stored
+  postgres:
+    # Use PostgreSQL version 16 (latest stable version)
+    image: postgres:16
+    
+    # Container name for easy reference
+    container_name: taskflow-postgres
+    
+    # Environment variables to configure PostgreSQL
+    environment:
+      # Database name that will be created automatically on first start
+      POSTGRES_DB: TaskFlowDb
+      
+      # Username for connecting to the database
+      POSTGRES_USER: taskflow
+      
+      # Password for the database user
+      # NOTE: In production, use secrets management instead of hardcoded passwords
+      POSTGRES_PASSWORD: taskflow123
+    
+    # Port mapping: host_port:container_port
+    # Maps port 5432 on your machine to port 5432 in the container
+    # This allows your .NET app to connect to localhost:5432
+    ports:
+      - "5433:5432"
+    
+    # Volume mapping for data persistence
+    # Without this, all data would be lost when the container stops
+    volumes:
+      # Store PostgreSQL data on your host machine
+      # This ensures data survives container restarts
+      - postgres_data:/var/lib/postgresql/data
+    
+    # Health check to ensure database is ready before other services start
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    # Restart policy: always restart if container stops
+    restart: unless-stopped
+
+# Named volumes declaration
+# Docker will create and manage these volumes
+volumes:
+  # Volume for PostgreSQL data persistence
+  postgres_data:
+    driver: local
