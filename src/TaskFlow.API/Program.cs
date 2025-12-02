@@ -1,11 +1,14 @@
 using Microsoft.EntityFrameworkCore;
+using TaskFlow.Application;
 using TaskFlow.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
+// ========================================
 // Configure Database Context
+// ========================================
 // Register ApplicationDbContext with dependency injection
 // This tells EF Core to use PostgreSQL with our connection string
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -25,6 +28,16 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     }
 });
 
+// ========================================
+// Register Application Layer Services
+// ========================================
+// This registers MediatR, FluentValidation, AutoMapper, and Pipeline Behaviors
+// All application logic services are configured in one call
+builder.Services.AddApplication();
+
+// ========================================
+// Register API Services
+// ========================================
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

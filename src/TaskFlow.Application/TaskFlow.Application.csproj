@@ -4,6 +4,25 @@
     <ProjectReference Include="..\TaskFlow.Domain\TaskFlow.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.1" />
+    <PackageReference Include="FluentValidation" Version="12.1.0" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.0" />
+    <PackageReference Include="MediatR" Version="13.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Features\Projects\Commands\CreateProject\" />
+    <Folder Include="Features\Projects\Commands\DeleteProject\" />
+    <Folder Include="Features\Projects\Commands\UpdateProject\" />
+    <Folder Include="Features\Projects\Queries\GetProjectById\" />
+    <Folder Include="Features\Projects\Queries\GetProjectsByOwner\" />
+    <Folder Include="Features\Tasks\Commands\AssignTask\" />
+    <Folder Include="Features\Tasks\Commands\DeleteTask\" />
+    <Folder Include="Features\Tasks\Commands\UpdateTask\" />
+    <Folder Include="Features\Tasks\Queries\GetTasksByProject\" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
