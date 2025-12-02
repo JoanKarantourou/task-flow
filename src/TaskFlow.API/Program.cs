@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TaskFlow.Application;
+using TaskFlow.Infrastructure;
 using TaskFlow.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,18 +11,11 @@ var builder = WebApplication.CreateBuilder(args);
 // Configure Database Context
 // ========================================
 // Register ApplicationDbContext with dependency injection
-// This tells EF Core to use PostgreSQL with our connection string
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
-    // Get connection string from appsettings.json
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-
-    // Configure to use PostgreSQL with Npgsql provider
     options.UseNpgsql(connectionString);
 
-    // Enable sensitive data logging in development for debugging
-    // Shows parameter values in SQL logs (useful for learning)
-    // WARNING: Don't enable in production (security risk)
     if (builder.Environment.IsDevelopment())
     {
         options.EnableSensitiveDataLogging();
@@ -31,9 +25,14 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // ========================================
 // Register Application Layer Services
 // ========================================
-// This registers MediatR, FluentValidation, AutoMapper, and Pipeline Behaviors
-// All application logic services are configured in one call
+// Registers MediatR, FluentValidation, AutoMapper, and Pipeline Behaviors
 builder.Services.AddApplication();
+
+// ========================================
+// Register Infrastructure Layer Services
+// ========================================
+// Registers UnitOfWork and Repository implementations
+builder.Services.AddInfrastructure();
 
 // ========================================
 // Register API Services
