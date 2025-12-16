@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using TaskFlow.Application.Interfaces;
+using TaskFlow.Infrastructure.Identity;
 using TaskFlow.Infrastructure.Repositories;
 
 namespace TaskFlow.Infrastructure;
@@ -16,12 +17,24 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddInfrastructure(this IServiceCollection services)
     {
-        // Register Unit of Work
+        // ========================================
+        // Register Unit of Work & Repositories
+        // ========================================
         services.AddScoped<IUnitOfWork, UnitOfWork>();
-
-        // Register Repository Implementations
         services.AddScoped<IProjectRepository, ProjectRepository>();
         services.AddScoped<ITaskRepository, TaskRepository>();
+
+        // ========================================
+        // Register Authentication Services
+        // ========================================
+        // TokenService generates and validates JWT tokens
+        services.AddScoped<ITokenService, TokenService>();
+
+        // AuthService handles registration, login, token refresh
+        services.AddScoped<IAuthService, AuthService>();
+
+        // CurrentUserService extracts user info from HTTP context
+        services.AddScoped<ICurrentUserService, CurrentUserService>();
 
         return services;
     }

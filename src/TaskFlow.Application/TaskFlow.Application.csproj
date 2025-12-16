@@ -12,15 +12,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Features\Projects\Commands\CreateProject\" />
     <Folder Include="Features\Projects\Commands\DeleteProject\" />
     <Folder Include="Features\Projects\Commands\UpdateProject\" />
     <Folder Include="Features\Projects\Queries\GetProjectById\" />
     <Folder Include="Features\Projects\Queries\GetProjectsByOwner\" />
     <Folder Include="Features\Tasks\Commands\AssignTask\" />
     <Folder Include="Features\Tasks\Commands\DeleteTask\" />
-    <Folder Include="Features\Tasks\Commands\UpdateTask\" />
-    <Folder Include="Features\Tasks\Queries\GetTasksByProject\" />
   </ItemGroup>
 
   <PropertyGroup>

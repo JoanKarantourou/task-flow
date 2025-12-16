@@ -10,51 +10,85 @@ namespace TaskFlow.Application.Features.Tasks.Commands.CreateTask;
 
 /// <summary>
 /// Handler for CreateTaskCommand.
-/// Contains the business logic for creating a new task.
-/// MediatR automatically calls this when a CreateTaskCommand is sent.
-/// Now uses AutoMapper for entity-to-DTO conversion.
+/// Contains the business logic for creating a new task with authorization checks.
 /// </summary>
 public class CreateTaskCommandHandler : IRequestHandler<CreateTaskCommand, TaskDto>
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
+    private readonly ICurrentUserService _currentUserService;
 
     /// <summary>
-    /// Constructor - MediatR and DI will automatically inject dependencies.
+    /// Constructor - DI injects dependencies.
     /// </summary>
-    /// <param name="unitOfWork">Unit of Work for database operations</param>
-    /// <param name="mapper">AutoMapper for entity-to-DTO conversion</param>
-    public CreateTaskCommandHandler(IUnitOfWork unitOfWork, IMapper mapper)
+    public CreateTaskCommandHandler(
+        IUnitOfWork unitOfWork,
+        IMapper mapper,
+        ICurrentUserService currentUserService)
     {
         _unitOfWork = unitOfWork;
         _mapper = mapper;
+        _currentUserService = currentUserService;
     }
 
     /// <summary>
-    /// Handles the CreateTaskCommand and returns the created task as a DTO.
-    /// This method is called automatically by MediatR when the command is sent.
+    /// Handles the CreateTaskCommand and returns the created task.
+    /// Validates that:
+    /// 1. User is authenticated
+    /// 2. Project exists
+    /// 3. User has access to the project (is owner or member)
     /// </summary>
-    /// <param name="request">The command containing task creation data</param>
-    /// <param name="cancellationToken">Token to cancel the operation</param>
-    /// <returns>The created task as a TaskDto</returns>
-    /// <exception cref="ArgumentException">Thrown when project doesn't exist</exception>
     public async Task<TaskDto> Handle(
         CreateTaskCommand request,
         CancellationToken cancellationToken)
     {
-        // Step 1: Validate that the project exists
-        var projectExists = await _unitOfWork.Projects.AnyAsync(
-            p => p.Id == request.ProjectId,
-            cancellationToken);
+        // Step 1: Check if user is authenticated
+        if (!_currentUserService.IsAuthenticated || !_currentUserService.UserId.HasValue)
+        {
+            throw new UnauthorizedAccessException("User must be authenticated to create tasks");
+        }
 
-        if (!projectExists)
+        var currentUserId = _currentUserService.UserId.Value;
+
+        // Step 2: Validate that the project exists
+        var project = await _unitOfWork.Projects.GetByIdAsync(request.ProjectId, cancellationToken);
+
+        if (project == null)
         {
             throw new ArgumentException(
                 $"Project with ID {request.ProjectId} does not exist.",
                 nameof(request.ProjectId));
         }
 
-        // Step 2: Create the domain entity
+        // Step 3: Check if user has access to the project
+        var hasAccess = await _unitOfWork.Projects.UserHasAccessToProjectAsync(
+            request.ProjectId,
+            currentUserId,
+            cancellationToken);
+
+        if (!hasAccess)
+        {
+            throw new UnauthorizedAccessException(
+                "You do not have permission to create tasks in this project");
+        }
+
+        // Step 4: Validate assignee exists (if provided)
+        if (request.AssigneeId.HasValue)
+        {
+            var assigneeExists = await _unitOfWork.Projects.UserHasAccessToProjectAsync(
+                request.ProjectId,
+                request.AssigneeId.Value,
+                cancellationToken);
+
+            if (!assigneeExists)
+            {
+                throw new ArgumentException(
+                    "Cannot assign task to user who is not a member of this project",
+                    nameof(request.AssigneeId));
+            }
+        }
+
+        // Step 5: Create the domain entity
         var taskItem = new TaskItem
         {
             Title = request.Title,
@@ -63,25 +97,24 @@ public class CreateTaskCommandHandler : IRequestHandler<CreateTaskCommand, TaskD
             Priority = request.Priority,
             AssigneeId = request.AssigneeId,
             DueDate = request.DueDate,
-            Status = TaskStatus.Todo, // New tasks always start as Todo
+            Status = TaskStatus.Todo // New tasks always start as Todo
         };
 
-        // Step 3: Add the task to the repository
+        // Step 6: Add the task to the repository
         await _unitOfWork.Tasks.AddAsync(taskItem, cancellationToken);
 
-        // Step 4: Save changes to the database
+        // Step 7: Save changes to the database
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // Step 5: Fetch the task with related data
+        // Step 8: Fetch the task with related data
         var createdTask = await _unitOfWork.Tasks.GetTaskWithDetailsAsync(
             taskItem.Id,
             cancellationToken);
 
-        // Step 6: Use AutoMapper to convert entity to DTO
-        // This replaces 15+ lines of manual mapping with one line!
+        // Step 9: Convert entity to DTO
         var taskDto = _mapper.Map<TaskDto>(createdTask);
 
-        // TODO: Later, we'll publish a TaskCreatedEvent here for real-time notifications
+        // TODO: Phase 6 - Publish TaskCreatedEvent for real-time notifications
         // await _publishEndpoint.Publish(new TaskCreatedEvent { ... });
 
         return taskDto;
