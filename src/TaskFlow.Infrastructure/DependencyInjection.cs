@@ -10,6 +10,7 @@ using TaskFlow.Infrastructure.Identity;
 using TaskFlow.Infrastructure.Messaging.Consumers;
 using TaskFlow.Infrastructure.Persistence;
 using TaskFlow.Infrastructure.Repositories;
+using TaskFlow.Infrastructure.Services;
 
 namespace TaskFlow.Infrastructure;
 
@@ -161,6 +162,8 @@ public static class DependencyInjection
                 cfg.ConfigureEndpoints(context);
             });
         });
+
+        services.AddScoped<INotificationService, SignalRNotificationService>();
 
         return services;
     }

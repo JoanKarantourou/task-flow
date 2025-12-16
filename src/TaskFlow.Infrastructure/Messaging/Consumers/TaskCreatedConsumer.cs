@@ -1,27 +1,30 @@
 ﻿using MassTransit;
 using Microsoft.Extensions.Logging;
 using TaskFlow.Application.Contracts;
+using TaskFlow.Application.Interfaces;
 
 namespace TaskFlow.Infrastructure.Messaging.Consumers;
 
 /// <summary>
 /// Consumer that processes TaskCreatedEvent messages from RabbitMQ.
-/// This consumer is responsible for handling actions that should occur when a task is created,
-/// such as logging, sending notifications, or triggering other workflows.
-/// 
-/// MassTransit automatically routes TaskCreatedEvent messages to this consumer.
+/// Handles logging, email notifications, and real-time SignalR notifications.
 /// </summary>
 public class TaskCreatedConsumer : IConsumer<TaskCreatedEvent>
 {
     private readonly ILogger<TaskCreatedConsumer> _logger;
+    private readonly INotificationService _notificationService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TaskCreatedConsumer"/> class.
     /// </summary>
     /// <param name="logger">Logger for recording consumer activity and errors.</param>
-    public TaskCreatedConsumer(ILogger<TaskCreatedConsumer> logger)
+    /// <param name="notificationService">Service for sending real-time SignalR notifications.</param>
+    public TaskCreatedConsumer(
+        ILogger<TaskCreatedConsumer> logger,
+        INotificationService notificationService)
     {
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     /// <summary>
@@ -32,10 +35,9 @@ public class TaskCreatedConsumer : IConsumer<TaskCreatedEvent>
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task Consume(ConsumeContext<TaskCreatedEvent> context)
     {
-        // Extract the event data from the message context
         var message = context.Message;
 
-        // Log the task creation event with relevant details
+        // Log the task creation event
         _logger.LogInformation(
             "Task Created Event Received: TaskId={TaskId}, Title={Title}, Project={ProjectName}, CreatedBy={CreatedByName}",
             message.TaskId,
@@ -44,7 +46,18 @@ public class TaskCreatedConsumer : IConsumer<TaskCreatedEvent>
             message.CreatedByName
         );
 
-        // Simulate sending an email notification if the task is assigned to someone
+        // Send real-time SignalR notification to connected clients
+        await _notificationService.NotifyTaskCreatedAsync(
+            message.TaskId,
+            message.Title,
+            message.ProjectId,
+            message.ProjectName,
+            message.CreatedByName,
+            message.AssigneeId,
+            context.CancellationToken
+        );
+
+        // Simulate sending an email notification if the task is assigned
         if (message.AssigneeId.HasValue && !string.IsNullOrEmpty(message.AssigneeEmail))
         {
             _logger.LogInformation(
@@ -55,9 +68,6 @@ public class TaskCreatedConsumer : IConsumer<TaskCreatedEvent>
             );
 
             // In a real application, you would call an email service here
-            // Example: await _emailService.SendTaskCreatedEmailAsync(message);
-
-            // For now, we just simulate the email send with a small delay
             await Task.Delay(100); // Simulate async email operation
         }
 
@@ -66,10 +76,5 @@ public class TaskCreatedConsumer : IConsumer<TaskCreatedEvent>
             "Task Created Event processed successfully for TaskId={TaskId}",
             message.TaskId
         );
-
-        // Note: If this method throws an exception, MassTransit will automatically:
-        // 1. Retry the message processing based on configured retry policy
-        // 2. Move the message to an error queue if all retries fail
-        // This ensures reliable message processing
     }
 }

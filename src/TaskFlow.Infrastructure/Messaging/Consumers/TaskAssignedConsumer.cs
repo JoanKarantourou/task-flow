@@ -1,29 +1,30 @@
 ﻿using MassTransit;
 using Microsoft.Extensions.Logging;
 using TaskFlow.Application.Contracts;
+using TaskFlow.Application.Interfaces;
 
 namespace TaskFlow.Infrastructure.Messaging.Consumers;
 
 /// <summary>
 /// Consumer that processes TaskAssignedEvent messages from RabbitMQ.
-/// This consumer handles notifications and logging when a task is assigned to a user.
-/// 
-/// This is typically triggered when:
-/// - A task is initially assigned during creation
-/// - A task is reassigned from one user to another
-/// - An unassigned task is assigned to a user
+/// Handles logging, email notifications, and real-time SignalR notifications.
 /// </summary>
 public class TaskAssignedConsumer : IConsumer<TaskAssignedEvent>
 {
     private readonly ILogger<TaskAssignedConsumer> _logger;
+    private readonly INotificationService _notificationService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TaskAssignedConsumer"/> class.
     /// </summary>
     /// <param name="logger">Logger for recording consumer activity and errors.</param>
-    public TaskAssignedConsumer(ILogger<TaskAssignedConsumer> logger)
+    /// <param name="notificationService">Service for sending real-time SignalR notifications.</param>
+    public TaskAssignedConsumer(
+        ILogger<TaskAssignedConsumer> logger,
+        INotificationService notificationService)
     {
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     /// <summary>
@@ -34,10 +35,9 @@ public class TaskAssignedConsumer : IConsumer<TaskAssignedEvent>
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task Consume(ConsumeContext<TaskAssignedEvent> context)
     {
-        // Extract the event data from the message context
         var message = context.Message;
 
-        // Log the task assignment event with all relevant details
+        // Log the task assignment event
         _logger.LogInformation(
             "Task Assigned Event Received: TaskId={TaskId}, Title={TaskTitle}, Assignee={AssigneeName}, AssignedBy={AssignedByName}, Project={ProjectName}",
             message.TaskId,
@@ -45,6 +45,18 @@ public class TaskAssignedConsumer : IConsumer<TaskAssignedEvent>
             message.AssigneeName,
             message.AssignedByName,
             message.ProjectName
+        );
+
+        // Send real-time SignalR notification to connected clients
+        await _notificationService.NotifyTaskAssignedAsync(
+            message.TaskId,
+            message.TaskTitle,
+            message.ProjectId,
+            message.ProjectName,
+            message.AssigneeId,
+            message.AssigneeName,
+            message.AssignedByName,
+            context.CancellationToken
         );
 
         // Simulate sending an email notification to the assigned user
@@ -56,19 +68,7 @@ public class TaskAssignedConsumer : IConsumer<TaskAssignedEvent>
             message.AssignedByName
         );
 
-        // In a real application, you would call an email service here
-        // Example: 
-        // await _emailService.SendTaskAssignedEmailAsync(new TaskAssignedEmail
-        // {
-        //     To = message.AssigneeEmail,
-        //     TaskTitle = message.TaskTitle,
-        //     ProjectName = message.ProjectName,
-        //     AssignedBy = message.AssignedByName,
-        //     TaskUrl = $"https://taskflow.app/tasks/{message.TaskId}"
-        // });
-
-        // Simulate async email operation
-        await Task.Delay(100);
+        await Task.Delay(100); // Simulate async email operation
 
         // Log successful processing
         _logger.LogInformation(
@@ -76,11 +76,5 @@ public class TaskAssignedConsumer : IConsumer<TaskAssignedEvent>
             message.TaskId,
             message.AssigneeName
         );
-
-        // Additional actions could include:
-        // - Creating a notification record in the database
-        // - Sending a push notification to mobile devices
-        // - Updating user statistics (tasks assigned count)
-        // - Triggering integrations with other systems (Slack, Teams, etc.)
     }
 }

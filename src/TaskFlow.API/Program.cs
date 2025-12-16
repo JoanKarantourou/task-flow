@@ -1,8 +1,9 @@
+using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using System.Text;
+using TaskFlow.API.Hubs;
 using TaskFlow.Application;
 using TaskFlow.Infrastructure;
 using TaskFlow.Infrastructure.Persistence;
@@ -38,70 +39,10 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
 // ========================================
-// Configure JWT Authentication
+// Configure HTTP Context Accessor
 // ========================================
 // Add HttpContextAccessor (needed by CurrentUserService)
 builder.Services.AddHttpContextAccessor();
-
-// Configure JWT Bearer authentication
-builder.Services.AddAuthentication(options =>
-{
-    // Use JWT Bearer as the default authentication scheme
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    // Read JWT settings from appsettings.json
-    var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-    var secretKey = jwtSettings["Key"] ?? throw new InvalidOperationException("JWT Key not configured");
-
-    // Configure token validation parameters
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        // Validate the token signature (prevents tampering)
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
-
-        // Validate the issuer (who created the token)
-        ValidateIssuer = true,
-        ValidIssuer = jwtSettings["Issuer"],
-
-        // Validate the audience (who the token is for)
-        ValidateAudience = true,
-        ValidAudience = jwtSettings["Audience"],
-
-        // Validate the token hasn't expired
-        ValidateLifetime = true,
-
-        // No clock skew (token expires exactly at expiration time)
-        ClockSkew = TimeSpan.Zero
-    };
-
-    // Optional: Configure events for logging/debugging
-    options.Events = new JwtBearerEvents
-    {
-        OnAuthenticationFailed = context =>
-        {
-            // Log authentication failures
-            if (context.Exception.GetType() == typeof(SecurityTokenExpiredException))
-            {
-                context.Response.Headers.Add("Token-Expired", "true");
-            }
-            return Task.CompletedTask;
-        },
-        OnChallenge = context =>
-        {
-            // Log when authentication is challenged (401 response)
-            return Task.CompletedTask;
-        },
-        OnTokenValidated = context =>
-        {
-            // Log successful token validation
-            return Task.CompletedTask;
-        }
-    };
-});
 
 // ========================================
 // Register API Services
@@ -155,6 +96,22 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+// ========================================
+// Configure SignalR
+// ========================================
+builder.Services.AddSignalR(options =>
+{
+    // Enable detailed errors in development for debugging
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+
+    // Configure timeouts
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(60);
+    options.HandshakeTimeout = TimeSpan.FromSeconds(15);
+
+    // Configure message size limits (increase if sending large notifications)
+    options.MaximumReceiveMessageSize = 32 * 1024; // 32 KB
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -168,7 +125,13 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseHttpsRedirection();
+// Disable HTTPS redirection in development to allow HTTP SignalR connections
+// app.UseHttpsRedirection();
+
+// ========================================
+// Enable WebSockets for SignalR
+// ========================================
+app.UseWebSockets();
 
 // ========================================
 // Authentication & Authorization Middleware
@@ -180,5 +143,12 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// ========================================
+// Map SignalR Hub Endpoint
+// ========================================
+// This creates the endpoint /hubs/notifications that clients connect to
+// Requires authentication - only authenticated users can connect
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 app.Run();

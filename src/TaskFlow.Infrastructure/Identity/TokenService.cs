@@ -30,8 +30,8 @@ public class TokenService : ITokenService
         _configuration = configuration;
         
         // Read JWT settings from appsettings.json
-        _secretKey = _configuration["JwtSettings:Key"] 
-            ?? throw new InvalidOperationException("JWT Key not configured");
+        _secretKey = _configuration["JwtSettings:SecretKey"]
+            ?? throw new InvalidOperationException("JWT SecretKey not configured");
         _issuer = _configuration["JwtSettings:Issuer"] 
             ?? throw new InvalidOperationException("JWT Issuer not configured");
         _audience = _configuration["JwtSettings:Audience"] 
@@ -214,7 +214,7 @@ public class TokenService : ITokenService
 //
 // {
 //   "JwtSettings": {
-//     "Key": "YourSuperSecretKeyThatIsAtLeast32CharactersLong!",
+//     "SecretKey": "YourSuperSecretKeyThatIsAtLeast32CharactersLong!",
 //     "Issuer": "TaskFlowAPI",
 //     "Audience": "TaskFlowClient",
 //     "ExpiryMinutes": 60,
@@ -222,7 +222,7 @@ public class TokenService : ITokenService
 //   }
 // }
 //
-// Key: Secret used to sign tokens (must be long and random!)
+// SecretKey: Secret used to sign tokens (must be long and random!)
 // Issuer: Who creates the token (your API)
 // Audience: Who the token is for (your frontend)
 // ExpiryMinutes: How long access token is valid (15-60 minutes typical)
