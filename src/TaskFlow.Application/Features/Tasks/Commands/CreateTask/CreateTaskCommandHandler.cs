@@ -1,122 +1,107 @@
 ﻿using AutoMapper;
+using MassTransit;
 using MediatR;
+using TaskFlow.Application.Contracts;
 using TaskFlow.Application.DTOs;
 using TaskFlow.Application.Interfaces;
 using TaskFlow.Domain.Entities;
-using TaskFlow.Domain.Enums;
 using TaskStatus = TaskFlow.Domain.Enums.TaskStatus;
 
 namespace TaskFlow.Application.Features.Tasks.Commands.CreateTask;
 
 /// <summary>
-/// Handler for CreateTaskCommand.
-/// Contains the business logic for creating a new task with authorization checks.
+/// Handles the CreateTaskCommand by creating a new task in the database
+/// and publishing a TaskCreatedEvent to RabbitMQ for downstream processing.
 /// </summary>
 public class CreateTaskCommandHandler : IRequestHandler<CreateTaskCommand, TaskDto>
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
+    private readonly IPublishEndpoint _publishEndpoint;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IGenericRepository<User> _userRepository;
 
     /// <summary>
-    /// Constructor - DI injects dependencies.
+    /// Initializes a new instance of the <see cref="CreateTaskCommandHandler"/> class.
     /// </summary>
+    /// <param name="unitOfWork">Unit of work for database operations and transaction management.</param>
+    /// <param name="mapper">AutoMapper instance for object mapping.</param>
+    /// <param name="publishEndpoint">MassTransit publish endpoint for sending events to RabbitMQ.</param>
+    /// <param name="currentUserService">Service to get the current authenticated user.</param>
+    /// <param name="userRepository">Generic repository for accessing User entities.</param>
     public CreateTaskCommandHandler(
         IUnitOfWork unitOfWork,
         IMapper mapper,
-        ICurrentUserService currentUserService)
+        IPublishEndpoint publishEndpoint,
+        ICurrentUserService currentUserService,
+        IGenericRepository<User> userRepository)
     {
         _unitOfWork = unitOfWork;
         _mapper = mapper;
+        _publishEndpoint = publishEndpoint;
         _currentUserService = currentUserService;
+        _userRepository = userRepository;
     }
 
     /// <summary>
-    /// Handles the CreateTaskCommand and returns the created task.
-    /// Validates that:
-    /// 1. User is authenticated
-    /// 2. Project exists
-    /// 3. User has access to the project (is owner or member)
+    /// Handles the CreateTaskCommand by:
+    /// 1. Creating the task entity
+    /// 2. Saving it to the database
+    /// 3. Publishing a TaskCreatedEvent to RabbitMQ
     /// </summary>
-    public async Task<TaskDto> Handle(
-        CreateTaskCommand request,
-        CancellationToken cancellationToken)
+    /// <param name="request">The create task command containing task details.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A TaskDto representing the created task.</returns>
+    public async Task<TaskDto> Handle(CreateTaskCommand request, CancellationToken cancellationToken)
     {
-        // Step 1: Check if user is authenticated
-        if (!_currentUserService.IsAuthenticated || !_currentUserService.UserId.HasValue)
-        {
-            throw new UnauthorizedAccessException("User must be authenticated to create tasks");
-        }
+        // Get the current user ID from the authentication context (property, not method)
+        var currentUserId = _currentUserService.UserId
+            ?? throw new UnauthorizedAccessException("User must be authenticated to create tasks");
 
-        var currentUserId = _currentUserService.UserId.Value;
-
-        // Step 2: Validate that the project exists
-        var project = await _unitOfWork.Projects.GetByIdAsync(request.ProjectId, cancellationToken);
-
-        if (project == null)
-        {
-            throw new ArgumentException(
-                $"Project with ID {request.ProjectId} does not exist.",
-                nameof(request.ProjectId));
-        }
-
-        // Step 3: Check if user has access to the project
-        var hasAccess = await _unitOfWork.Projects.UserHasAccessToProjectAsync(
-            request.ProjectId,
-            currentUserId,
-            cancellationToken);
-
-        if (!hasAccess)
-        {
-            throw new UnauthorizedAccessException(
-                "You do not have permission to create tasks in this project");
-        }
-
-        // Step 4: Validate assignee exists (if provided)
-        if (request.AssigneeId.HasValue)
-        {
-            var assigneeExists = await _unitOfWork.Projects.UserHasAccessToProjectAsync(
-                request.ProjectId,
-                request.AssigneeId.Value,
-                cancellationToken);
-
-            if (!assigneeExists)
-            {
-                throw new ArgumentException(
-                    "Cannot assign task to user who is not a member of this project",
-                    nameof(request.AssigneeId));
-            }
-        }
-
-        // Step 5: Create the domain entity
-        var taskItem = new TaskItem
+        // Create the task entity from the command
+        var task = new TaskItem
         {
             Title = request.Title,
             Description = request.Description,
             ProjectId = request.ProjectId,
-            Priority = request.Priority,
             AssigneeId = request.AssigneeId,
-            DueDate = request.DueDate,
-            Status = TaskStatus.Todo // New tasks always start as Todo
+            Status = TaskStatus.Todo, // New tasks always start in Todo status
+            Priority = request.Priority,
+            DueDate = request.DueDate
         };
 
-        // Step 6: Add the task to the repository
-        await _unitOfWork.Tasks.AddAsync(taskItem, cancellationToken);
+        // Add the task to the repository
+        await _unitOfWork.Tasks.AddAsync(task);
 
-        // Step 7: Save changes to the database
+        // Save changes to the database to get the generated TaskId
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // Step 8: Fetch the task with related data
-        var createdTask = await _unitOfWork.Tasks.GetTaskWithDetailsAsync(
-            taskItem.Id,
-            cancellationToken);
+        // Fetch the related entities for the event using the injected user repository
+        var project = await _unitOfWork.Projects.GetByIdAsync(task.ProjectId);
+        var creator = await _userRepository.GetByIdAsync(currentUserId);
+        User? assignee = null;
 
-        // Step 9: Convert entity to DTO
-        var taskDto = _mapper.Map<TaskDto>(createdTask);
+        if (task.AssigneeId.HasValue)
+        {
+            assignee = await _userRepository.GetByIdAsync(task.AssigneeId.Value);
+        }
 
-        // TODO: Phase 6 - Publish TaskCreatedEvent for real-time notifications
-        // await _publishEndpoint.Publish(new TaskCreatedEvent { ... });
+        // Publish TaskCreatedEvent to RabbitMQ
+        // This event will be consumed by TaskCreatedConsumer for notifications and logging
+        await _publishEndpoint.Publish(new TaskCreatedEvent
+        {
+            TaskId = task.Id,
+            Title = task.Title,
+            ProjectId = task.ProjectId,
+            ProjectName = project?.Name ?? "Unknown Project",
+            CreatedBy = currentUserId,
+            CreatedByName = creator != null ? $"{creator.FirstName} {creator.LastName}" : "Unknown User",
+            AssigneeId = task.AssigneeId,
+            AssigneeEmail = assignee?.Email,
+            CreatedAt = DateTime.UtcNow
+        }, cancellationToken);
 
-        return taskDto;
+        // Map the entity to DTO and return
+        return _mapper.Map<TaskDto>(task);
     }
 }

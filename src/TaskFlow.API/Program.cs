@@ -35,7 +35,7 @@ builder.Services.AddApplication();
 // Register Infrastructure Layer Services
 // ========================================
 // Registers UnitOfWork, Repositories, and Authentication Services
-builder.Services.AddInfrastructure();
+builder.Services.AddInfrastructure(builder.Configuration);
 
 // ========================================
 // Configure JWT Authentication
