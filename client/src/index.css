@@ -1,0 +1,69 @@
+/* 
+  Tailwind CSS Base Styles
+  This imports Tailwind's base styles, components, and utilities
+*/
+
+/* Tailwind's base styles (CSS reset + base element styles) */
+@tailwind base;
+
+/* Tailwind's component classes (buttons, forms, etc.) */
+@tailwind components;
+
+/* Tailwind's utility classes (flex, grid, text-center, etc.) */
+@tailwind utilities;
+
+/* 
+  Custom Global Styles
+  Add any custom styles below the Tailwind directives
+*/
+
+/* Smooth scrolling for the entire app */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Set consistent box-sizing for all elements */
+  * {
+    box-sizing: border-box;
+  }
+
+  /* Base body styles */
+  body {
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Code blocks styling */
+  code {
+    font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+  }
+}
+
+/* 
+  Custom scrollbar styling (optional but nice)
+*/
+@layer utilities {
+  /* Custom scrollbar for webkit browsers (Chrome, Safari, Edge) */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: #f1f1f1;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
+}
