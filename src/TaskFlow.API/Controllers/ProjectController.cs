@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TaskFlow.Application.Features.Projects.Commands.CreateProject;
+using TaskFlow.Application.Features.Projects.Commands.DeleteProject;
+using TaskFlow.Application.Features.Projects.Commands.UpdateProject;
 using TaskFlow.Application.Features.Projects.Queries.GetProjectById;
 using TaskFlow.Application.Features.Projects.Queries.GetProjectsByOwner;
 
@@ -131,24 +133,57 @@ public class ProjectsController : ControllerBase
     /// User must be the project owner.
     /// </summary>
     /// <param name="id">Project ID</param>
-    /// <response code="501">Not yet implemented</response>
+    /// <param name="command">Updated project data</param>
+    /// <response code="200">Project updated successfully</response>
+    /// <response code="400">Invalid input data</response>
+    /// <response code="401">Not authenticated</response>
+    /// <response code="403">No permission to update this project</response>
+    /// <response code="404">Project not found</response>
     [HttpPut("{id}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateProject(Guid id)
+    public async Task<IActionResult> UpdateProject(Guid id, [FromBody] UpdateProjectCommand command)
     {
-        // TODO: Implement UpdateProjectCommand if needed
-        return StatusCode(501, new { message = "Update functionality not yet implemented" });
+        // Ensure the ID in the route matches the command
+        command.ProjectId = id;
+
+        try
+        {
+            var result = await _mediator.Send(command);
+
+            _logger.LogInformation("Project updated: {ProjectId}", id);
+
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning("Unauthorized project update attempt on {ProjectId}: {Message}", id, ex.Message);
+            return Forbid();
+        }
+        catch (ArgumentException ex) when (ex.Message.Contains("not found"))
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("Invalid project update data for {ProjectId}: {Message}", id, ex.Message);
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     /// <summary>
     /// Deletes a project.
     /// User must be the project owner.
+    /// This will also delete all associated tasks and comments.
     /// </summary>
     /// <param name="id">Project ID</param>
-    /// <response code="501">Not yet implemented</response>
+    /// <response code="204">Project deleted successfully</response>
+    /// <response code="401">Not authenticated</response>
+    /// <response code="403">No permission to delete this project</response>
+    /// <response code="404">Project not found</response>
     [HttpDelete("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -156,7 +191,23 @@ public class ProjectsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteProject(Guid id)
     {
-        // TODO: Implement DeleteProjectCommand if needed
-        return StatusCode(501, new { message = "Delete functionality not yet implemented" });
+        try
+        {
+            var command = new DeleteProjectCommand { ProjectId = id };
+            await _mediator.Send(command);
+
+            _logger.LogInformation("Project deleted: {ProjectId}", id);
+
+            return NoContent();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning("Unauthorized project deletion attempt on {ProjectId}: {Message}", id, ex.Message);
+            return Forbid();
+        }
+        catch (ArgumentException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 }

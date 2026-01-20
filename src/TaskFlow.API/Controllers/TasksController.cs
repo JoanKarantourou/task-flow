@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TaskFlow.Application.Features.Tasks.Commands.CreateTask;
+using TaskFlow.Application.Features.Tasks.Commands.DeleteTask;
 using TaskFlow.Application.Features.Tasks.Commands.UpdateTask;
 using TaskFlow.Application.Features.Tasks.Queries.GetTaskById;
 using TaskFlow.Application.Features.Tasks.Queries.GetTasksByProject;
@@ -179,7 +180,8 @@ public class TasksController : ControllerBase
 
     /// <summary>
     /// Deletes a task.
-    /// User must have permission to delete the task.
+    /// User must have permission to delete the task (project owner or task assignee).
+    /// This will also delete all associated comments.
     /// </summary>
     /// <param name="id">Task ID</param>
     /// <response code="204">Task deleted successfully</response>
@@ -195,15 +197,22 @@ public class TasksController : ControllerBase
     {
         try
         {
-            // For now, just return 501 Not Implemented
-            // We'll implement DeleteTaskCommand later if needed
-            return StatusCode(501, new { message = "Delete functionality not yet implemented" });
+            var command = new DeleteTaskCommand { TaskId = id };
+            await _mediator.Send(command);
+
+            _logger.LogInformation("Task deleted: {TaskId}", id);
+
+            return NoContent();
         }
         catch (UnauthorizedAccessException ex)
         {
             _logger.LogWarning("Unauthorized task deletion attempt on {TaskId}: {Message}",
                 id, ex.Message);
             return Forbid();
+        }
+        catch (ArgumentException ex)
+        {
+            return NotFound(new { message = ex.Message });
         }
     }
 }
