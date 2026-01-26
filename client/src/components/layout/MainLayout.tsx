@@ -4,7 +4,7 @@
 // Combines Header and Sidebar to create the main app layout
 // Wraps all authenticated pages
 
-import React, { ReactNode } from "react";
+import { ReactNode } from "react";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
 

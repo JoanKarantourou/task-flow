@@ -4,9 +4,8 @@
 // Top navigation bar with user menu and notifications
 // Always visible at the top of authenticated pages
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
-import Button from "../ui/Button";
 
 // ============================================
 // Header Component

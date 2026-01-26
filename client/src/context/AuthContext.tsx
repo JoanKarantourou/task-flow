@@ -4,7 +4,7 @@
 // Provides authentication state and methods to the entire app
 // Similar to a scoped service in .NET that manages user session
 
-import React, {
+import {
   createContext,
   useContext,
   useState,

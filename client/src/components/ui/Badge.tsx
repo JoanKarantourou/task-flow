@@ -4,7 +4,7 @@
 // Small colored labels for status indicators, tags, counts, etc.
 // Perfect for task status, priority levels, notifications
 
-import React, { ReactNode } from "react";
+import { ReactNode } from "react";
 
 // ============================================
 // Badge Props

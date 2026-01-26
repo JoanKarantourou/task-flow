@@ -143,16 +143,8 @@ class ProjectService {
       // For now, we'll use the main endpoint and filter client-side
       const allProjects = await this.getMyProjects();
 
-      // Filter to only show owned projects
-      // In a real app, this filtering should happen on the backend for performance
-      const ownedProjects = allProjects.filter((project) => {
-        // You'd need to compare with current user's ID
-        // For now, return all (backend should handle this)
-        return true;
-      });
-
-      console.log(`✅ Found ${ownedProjects.length} owned projects`);
-      return ownedProjects;
+      console.log(`✅ Found ${allProjects.length} owned projects`);
+      return allProjects;
     } catch (error) {
       console.error(
         "❌ Failed to fetch owned projects:",

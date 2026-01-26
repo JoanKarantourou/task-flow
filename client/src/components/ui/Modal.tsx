@@ -4,7 +4,7 @@
 // Accessible dialog/popup overlay component
 // Used for forms, confirmations, detailed views
 
-import React, { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect } from "react";
 
 // ============================================
 // Modal Props

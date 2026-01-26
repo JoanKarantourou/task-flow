@@ -5,6 +5,7 @@
 // Collapsible on mobile devices
 
 import React, { useState } from "react";
+import { NavLink } from "react-router-dom";
 
 // ============================================
 // Navigation Item Interface
@@ -37,12 +38,12 @@ export default function Sidebar() {
 
   /**
    * Define navigation menu items
-   * You'll update hrefs when React Router is set up
+   * Updated with React Router paths
    */
   const navItems: NavItem[] = [
     {
       name: "Dashboard",
-      href: "#",
+      href: "/dashboard",
       icon: (
         <svg
           className="w-5 h-5"
@@ -61,7 +62,7 @@ export default function Sidebar() {
     },
     {
       name: "Projects",
-      href: "#",
+      href: "/projects",
       icon: (
         <svg
           className="w-5 h-5"
@@ -80,7 +81,7 @@ export default function Sidebar() {
     },
     {
       name: "Tasks",
-      href: "#",
+      href: "/tasks",
       icon: (
         <svg
           className="w-5 h-5"
@@ -99,8 +100,8 @@ export default function Sidebar() {
       badge: 5, // Example: 5 pending tasks
     },
     {
-      name: "Team",
-      href: "#",
+      name: "Profile",
+      href: "/profile",
       icon: (
         <svg
           className="w-5 h-5"
@@ -112,7 +113,7 @@ export default function Sidebar() {
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeWidth={2}
-            d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
           />
         </svg>
       ),
@@ -169,10 +170,16 @@ export default function Sidebar() {
       {/* Navigation Items */}
       <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
         {navItems.map((item) => (
-          <a
+          <NavLink
             key={item.name}
-            href={item.href}
-            className="flex items-center gap-3 px-3 py-3 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white transition-colors group relative"
+            to={item.href}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-3 rounded-lg transition-colors group relative ${
+                isActive
+                  ? "bg-primary-600 text-white"
+                  : "text-gray-300 hover:bg-gray-800 hover:text-white"
+              }`
+            }
             title={isCollapsed ? item.name : undefined}
           >
             {/* Icon */}
@@ -185,7 +192,7 @@ export default function Sidebar() {
 
                 {/* Badge (if present) */}
                 {item.badge !== undefined && (
-                  <span className="px-2 py-0.5 text-xs font-semibold bg-primary-600 text-white rounded-full">
+                  <span className="px-2 py-0.5 text-xs font-semibold bg-white/20 text-white rounded-full">
                     {item.badge}
                   </span>
                 )}
@@ -199,7 +206,7 @@ export default function Sidebar() {
                 {item.badge !== undefined && ` (${item.badge})`}
               </span>
             )}
-          </a>
+          </NavLink>
         ))}
       </nav>
 

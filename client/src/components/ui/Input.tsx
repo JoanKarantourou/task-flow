@@ -4,7 +4,7 @@
 // Reusable input field with label, error message, and icon support
 // Fully accessible with proper ARIA attributes
 
-import React, { InputHTMLAttributes, ReactNode } from "react";
+import { InputHTMLAttributes, ReactNode } from "react";
 
 // ============================================
 // Input Props
