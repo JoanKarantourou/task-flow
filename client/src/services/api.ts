@@ -20,7 +20,7 @@ import type { ApiError } from "../types";
  * In development: localhost:5000
  * In production: This would be your deployed API URL
  */
-const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL = `${import.meta.env.VITE_API_URL || ""}/api`;
 
 /**
  * Create an Axios instance with default configuration

@@ -24,7 +24,7 @@ import { NotificationType, type Notification } from "../types";
  */
 class SignalRService {
   private connection: HubConnection | null = null;
-  private readonly hubUrl = "http://localhost:5000/hubs/notifications";
+  private readonly hubUrl = `${import.meta.env.VITE_API_URL || ""}/hubs/notifications`;
 
   /**
    * Initialize and start the SignalR connection

@@ -1,106 +1,108 @@
-# Docker Compose configuration for TaskFlow development environment
-# This file defines all the services (containers) needed to run the application locally
+# Docker Compose configuration for TaskFlow
+# Run all services: docker compose up --build
 
 version: '3.8'
 
 services:
-  # PostgreSQL Database Service
-  # This is our primary database where all TaskFlow data will be stored
+  # ==========================================
+  # PostgreSQL Database
+  # ==========================================
   postgres:
-    # Use PostgreSQL version 16 (latest stable version)
     image: postgres:16
-    
-    # Container name for easy reference
     container_name: taskflow-postgres
-    
-    # Environment variables to configure PostgreSQL
     environment:
-      # Database name that will be created automatically on first start
       POSTGRES_DB: TaskFlowDb
-      
-      # Username for connecting to the database
       POSTGRES_USER: taskflow
-      
-      # Password for the database user
-      # NOTE: In production, use secrets management instead of hardcoded passwords
       POSTGRES_PASSWORD: taskflow123
-    
-    # Port mapping: host_port:container_port
-    # Maps port 5432 on your machine to port 5432 in the container
-    # This allows your .NET app to connect to localhost:5432
     ports:
       - "5433:5432"
-    
-    # Volume mapping for data persistence
-    # Without this, all data would be lost when the container stops
     volumes:
-      # Store PostgreSQL data on your host machine
-      # This ensures data survives container restarts
       - postgres_data:/var/lib/postgresql/data
-    
-    # Health check to ensure database is ready before other services start
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U taskflow"]
       interval: 10s
       timeout: 5s
       retries: 5
-    
-    # Restart policy: always restart if container stops
     restart: unless-stopped
+    networks:
+      - taskflow-network
 
-  # RabbitMQ Message Broker Service
-  # This service handles asynchronous message queuing for event-driven architecture
+  # ==========================================
+  # RabbitMQ Message Broker
+  # ==========================================
   rabbitmq:
-    # Use MassTransit's custom RabbitMQ image which includes management plugin
-    # This image is optimized for use with MassTransit and includes helpful defaults
     image: masstransit/rabbitmq:latest
-    
-    # Container name for easy reference
     container_name: taskflow-rabbitmq
-    
-    # Environment variables to configure RabbitMQ
     environment:
-      # Default username for RabbitMQ Management UI and connections
       RABBITMQ_DEFAULT_USER: guest
-      
-      # Default password for RabbitMQ
-      # NOTE: In production, use strong passwords and secrets management
       RABBITMQ_DEFAULT_PASS: guest
-    
-    # Port mappings for RabbitMQ services
     ports:
-      # AMQP port - used by applications to publish/consume messages
-      # This is the main port your .NET application will use
       - "5672:5672"
-      
-      # Management UI port - provides web-based administration interface
-      # Access at http://localhost:15672 with guest/guest credentials
-      # Useful for monitoring queues, exchanges, and message flow
       - "15672:15672"
-    
-    # Volume mapping for RabbitMQ data persistence
-    # Ensures queues and messages survive container restarts
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
-    
-    # Health check to ensure RabbitMQ is ready before dependent services start
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-    
-    # Restart policy: always restart if container stops
     restart: unless-stopped
+    networks:
+      - taskflow-network
 
-# Named volumes declaration
-# Docker will create and manage these volumes
+  # ==========================================
+  # .NET API Backend
+  # ==========================================
+  api:
+    build:
+      context: .
+      dockerfile: src/TaskFlow.API/Dockerfile
+    container_name: taskflow-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=TaskFlowDb;Username=taskflow;Password=taskflow123"
+      RabbitMQ__Host: rabbitmq
+      RabbitMQ__Username: guest
+      RabbitMQ__Password: guest
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - taskflow-network
+
+  # ==========================================
+  # React Client (nginx)
+  # ==========================================
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: taskflow-client
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - taskflow-network
+
+# ==========================================
+# Volumes
+# ==========================================
 volumes:
-  # Volume for PostgreSQL data persistence
   postgres_data:
     driver: local
-  
-  # Volume for RabbitMQ data persistence
-  # Stores queue definitions, messages, and other RabbitMQ data
   rabbitmq_data:
     driver: local
+
+# ==========================================
+# Networks
+# ==========================================
+networks:
+  taskflow-network:
+    driver: bridge

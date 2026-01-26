@@ -1,0 +1,17 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/.git/
+**/.vs/
+**/.vscode/
+**/.idea/
+**/TestResults/
+**/*.user
+**/*.suo
+.claude/
+client/tsconfig.tsbuildinfo
+client/tsconfig.node.tsbuildinfo
+client/vite.config.d.ts
+client/vite.config.js
+docs/
