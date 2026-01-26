@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using TaskFlow.API.Hubs;
+using TaskFlow.API.Middleware;
 using TaskFlow.Application;
 using TaskFlow.Infrastructure;
 using TaskFlow.Infrastructure.Persistence;
@@ -11,6 +12,23 @@ using TaskFlow.Infrastructure.Persistence;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+
+// ========================================
+// Configure CORS
+// ========================================
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowClient", policy =>
+    {
+        policy.WithOrigins(
+                "http://localhost:5173", // Vite dev server
+                "http://localhost:3000"  // Docker nginx client
+            )
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials(); // Required for SignalR
+    });
+});
 
 // ========================================
 // Configure Database Context
@@ -127,6 +145,16 @@ if (app.Environment.IsDevelopment())
 
 // Disable HTTPS redirection in development to allow HTTP SignalR connections
 // app.UseHttpsRedirection();
+
+// ========================================
+// Global Exception Handling
+// ========================================
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+// ========================================
+// Enable CORS
+// ========================================
+app.UseCors("AllowClient");
 
 // ========================================
 // Enable WebSockets for SignalR
