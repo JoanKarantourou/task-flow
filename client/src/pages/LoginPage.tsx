@@ -21,15 +21,21 @@ import Card from "../components/ui/Card";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
 const registerSchema = z
   .object({
-    firstName: z.string().min(1, "First name is required"),
-    lastName: z.string().min(1, "Last name is required"),
+    firstName: z.string().min(1, "First name is required").max(50),
+    lastName: z.string().min(1, "Last name is required").max(50),
     email: z.string().email("Invalid email address"),
-    password: z.string().min(6, "Password must be at least 6 characters"),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[A-Z]/, "Must contain an uppercase letter")
+      .regex(/[a-z]/, "Must contain a lowercase letter")
+      .regex(/[0-9]/, "Must contain a number")
+      .regex(/[!@#$%^&*()_+\-=\[\]{}|;:',.<>?/\\~`]/, "Must contain a special character"),
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -84,6 +90,7 @@ export default function LoginPage() {
       await registerUser({
         email: data.email,
         password: data.password,
+        confirmPassword: data.confirmPassword,
         firstName: data.firstName,
         lastName: data.lastName,
       });

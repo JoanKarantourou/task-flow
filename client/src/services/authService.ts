@@ -54,8 +54,9 @@ class AuthService {
       console.log("✅ Registration successful!");
       return response.data;
     } catch (error) {
-      console.error("❌ Registration failed:", getErrorMessage(error));
-      throw error;
+      const message = getErrorMessage(error);
+      console.error("❌ Registration failed:", message);
+      throw new Error(message);
     }
   }
 
@@ -80,8 +81,9 @@ class AuthService {
       console.log("✅ Login successful!");
       return response.data;
     } catch (error) {
-      console.error("❌ Login failed:", getErrorMessage(error));
-      throw error;
+      const message = getErrorMessage(error);
+      console.error("❌ Login failed:", message);
+      throw new Error(message);
     }
   }
 
@@ -196,7 +198,7 @@ class AuthService {
    */
   private saveAuthData(authData: AuthResponse): void {
     // Save tokens
-    localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, authData.token);
+    localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, authData.accessToken);
     localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, authData.refreshToken);
 
     // Save user data as JSON string

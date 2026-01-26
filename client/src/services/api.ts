@@ -107,19 +107,19 @@ apiClient.interceptors.response.use(
         const response = await axios.post(
           `${API_BASE_URL}/auth/refresh-token`,
           {
-            token: localStorage.getItem("accessToken"),
+            accessToken: localStorage.getItem("accessToken"),
             refreshToken: refreshToken,
           }
         );
 
         // Save new tokens
-        const { token, refreshToken: newRefreshToken } = response.data;
-        localStorage.setItem("accessToken", token);
+        const { accessToken, refreshToken: newRefreshToken } = response.data;
+        localStorage.setItem("accessToken", accessToken);
         localStorage.setItem("refreshToken", newRefreshToken);
 
         // Retry the original request with new token
         if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${token}`;
+          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         }
         return apiClient(originalRequest);
       } catch (refreshError) {
@@ -174,15 +174,15 @@ export function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const apiError = error.response?.data as ApiError | undefined;
 
+    // If API returned validation errors, show the first specific error
+    if (apiError?.errors) {
+      const firstError = Object.values(apiError.errors)[0];
+      if (firstError?.[0]) return firstError[0];
+    }
+
     // If API returned a structured error message
     if (apiError?.message) {
       return apiError.message;
-    }
-
-    // If API returned validation errors
-    if (apiError?.errors) {
-      const firstError = Object.values(apiError.errors)[0];
-      return firstError?.[0] || "Validation error occurred";
     }
 
     // Generic error based on status code

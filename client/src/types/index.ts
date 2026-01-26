@@ -153,6 +153,7 @@ export interface LoginRequest {
 export interface RegisterRequest {
   email: string;
   password: string;
+  confirmPassword: string;
   firstName: string;
   lastName: string;
 }
@@ -162,7 +163,7 @@ export interface RegisterRequest {
  * Received from: POST /api/auth/login and /api/auth/register
  */
 export interface AuthResponse {
-  token: string; // JWT access token
+  accessToken: string; // JWT access token
   refreshToken: string; // Refresh token for getting new access tokens
   user: User; // User information
   expiresAt: string; // When the access token expires (ISO 8601)
