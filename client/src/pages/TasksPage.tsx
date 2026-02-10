@@ -1,16 +1,19 @@
 // ============================================
-// Tasks Page - Kanban Board
+// Tasks Page - Kanban Board with Filters
 // ============================================
-// Display all tasks across projects in a Kanban board view
+// Display all tasks with search, filtering, and pagination
 
 import { useState, useEffect } from "react";
-import { Calendar, GripVertical } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Calendar, GripVertical, LayoutGrid, List } from "lucide-react";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
+import Pagination from "../components/ui/Pagination";
+import TaskFilters from "../components/tasks/TaskFilters";
 import projectService from "../services/projectService";
 import taskService from "../services/taskService";
-import type { Task, Project, TaskStatus, TaskPriority } from "../types";
+import type { Task, TaskStatus, TaskPriority, TaskFilterParams } from "../types";
 import toast from "react-hot-toast";
 
 // ============================================
@@ -67,31 +70,24 @@ function TaskCard({ task, projectName, onDragStart }: TaskCardProps) {
       onDragStart={(e) => onDragStart(e, task)}
       className="bg-white rounded-lg shadow-sm border p-4 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow"
     >
-      {/* Drag Handle */}
       <div className="flex items-start gap-2">
         <GripVertical className="w-4 h-4 text-gray-300 flex-shrink-0 mt-1" />
         <div className="flex-1 min-w-0">
-          {/* Task Title */}
           <h4 className="font-medium text-gray-900 mb-2">{task.title}</h4>
 
-          {/* Description */}
           {task.description && (
             <p className="text-sm text-gray-500 mb-3 line-clamp-2">{task.description}</p>
           )}
 
-          {/* Project Badge */}
           {projectName && (
             <div className="mb-3">
               <Badge variant="neutral" size="sm">{projectName}</Badge>
             </div>
           )}
 
-          {/* Footer */}
           <div className="flex items-center justify-between">
-            {/* Priority */}
             {getPriorityBadge(task.priority)}
 
-            {/* Due Date */}
             {dueDate && (
               <span className={`text-xs flex items-center gap-1 ${isOverdue ? "text-red-600" : "text-gray-500"}`}>
                 <Calendar className="w-3 h-3" />
@@ -136,7 +132,6 @@ function KanbanColumn({
       onDragOver={onDragOver}
       onDrop={(e) => onDrop(e, status)}
     >
-      {/* Column Header */}
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-gray-900">{title}</h3>
@@ -146,7 +141,6 @@ function KanbanColumn({
         </div>
       </div>
 
-      {/* Tasks */}
       <div className="p-4 space-y-3 min-h-[200px]">
         {tasks.length === 0 ? (
           <div className="text-center py-8 text-gray-400 text-sm">
@@ -172,52 +166,68 @@ function KanbanColumn({
 // ============================================
 
 export default function TasksPage() {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
   const [selectedProject, setSelectedProject] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  // Filter state
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<TaskStatus | undefined>(undefined);
+  const [priorityFilter, setPriorityFilter] = useState<TaskPriority | undefined>(undefined);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
-  const fetchData = async () => {
-    try {
-      setIsLoading(true);
-      const projectsData = await projectService.getMyProjects();
-      setProjects(projectsData);
-
-      // Fetch tasks for all projects
-      const allTasks: Task[] = [];
-      for (const project of projectsData) {
-        try {
-          const projectTasks = await taskService.getTasksByProjectId(project.id);
-          allTasks.push(...projectTasks);
-        } catch (error) {
-          console.error(`Failed to fetch tasks for project ${project.id}:`, error);
-        }
-      }
-      setTasks(allTasks);
-    } catch (error) {
-      console.error("Failed to fetch data:", error);
-      toast.error("Failed to load tasks");
-    } finally {
-      setIsLoading(false);
-    }
+  // Build filter params
+  const filterParams: TaskFilterParams = {
+    pageNumber,
+    pageSize,
+    search: searchTerm || undefined,
+    status: statusFilter,
+    priority: priorityFilter,
+    projectId: selectedProject !== "all" ? selectedProject : undefined,
   };
 
-  // Create a map of project IDs to names
+  // Fetch projects
+  const { data: projects = [] } = useQuery({
+    queryKey: ["projects"],
+    queryFn: () => projectService.getMyProjects(),
+  });
+
+  // Fetch tasks with filters
+  const { data: pagedTasks, isLoading } = useQuery({
+    queryKey: ["tasks", filterParams],
+    queryFn: () => taskService.getAllTasks(filterParams),
+  });
+
+  const tasks = pagedTasks?.items || [];
+  const totalPages = pagedTasks?.totalPages || 0;
+  const totalCount = pagedTasks?.totalCount || 0;
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPageNumber(1);
+  }, [searchTerm, statusFilter, priorityFilter, selectedProject]);
+
+  // Update task status mutation
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ taskId, status }: { taskId: string; status: TaskStatus }) =>
+      taskService.updateTaskStatus(taskId, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      toast.success("Task status updated!");
+    },
+    onError: () => {
+      toast.error("Failed to update task status");
+    },
+  });
+
+  // Project map
   const projectMap = new Map(projects.map((p) => [p.id, p.name]));
 
-  // Filter tasks by selected project
-  const filteredTasks = selectedProject === "all"
-    ? tasks
-    : tasks.filter((t) => t.projectId === selectedProject);
-
-  // Group tasks by status
+  // Group tasks by status for Kanban view
   const tasksByStatus = COLUMNS.reduce((acc, col) => {
-    acc[col.status] = filteredTasks.filter((t) => t.status === col.status);
+    acc[col.status] = tasks.filter((t) => t.status === col.status);
     return acc;
   }, {} as Record<TaskStatus, Task[]>);
 
@@ -240,25 +250,21 @@ export default function TasksPage() {
       return;
     }
 
-    try {
-      // Optimistic update
-      setTasks(tasks.map((t) =>
-        t.id === draggedTask.id ? { ...t, status: newStatus } : t
-      ));
+    updateStatusMutation.mutate({ taskId: draggedTask.id, status: newStatus });
+    setDraggedTask(null);
+  };
 
-      // API call
-      await taskService.updateTaskStatus(draggedTask.id, newStatus);
-      toast.success("Task status updated!");
-    } catch (error) {
-      console.error("Failed to update task status:", error);
-      // Revert on error
-      setTasks(tasks.map((t) =>
-        t.id === draggedTask.id ? { ...t, status: draggedTask.status } : t
-      ));
-      toast.error("Failed to update task status");
-    } finally {
-      setDraggedTask(null);
-    }
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setStatusFilter(undefined);
+    setPriorityFilter(undefined);
+    setSelectedProject("all");
+    setPageNumber(1);
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setPageNumber(1);
   };
 
   if (isLoading) {
@@ -275,11 +281,32 @@ export default function TasksPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">All Tasks</h1>
-          <p className="text-gray-600 mt-1">Drag and drop tasks to change their status</p>
+          <p className="text-gray-600 mt-1">
+            {totalCount} total tasks
+            {viewMode === "kanban" && " - Drag and drop to change status"}
+          </p>
         </div>
 
-        {/* Project Filter */}
         <div className="flex items-center gap-4">
+          {/* View Toggle */}
+          <div className="flex bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode("kanban")}
+              className={`p-2 rounded ${viewMode === "kanban" ? "bg-white shadow-sm" : ""}`}
+              aria-label="Kanban view"
+            >
+              <LayoutGrid className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              className={`p-2 rounded ${viewMode === "list" ? "bg-white shadow-sm" : ""}`}
+              aria-label="List view"
+            >
+              <List className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Project Filter */}
           <select
             value={selectedProject}
             onChange={(e) => setSelectedProject(e.target.value)}
@@ -295,30 +322,50 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        {COLUMNS.map((col) => (
-          <Card key={col.status} padding="sm">
-            <div className="text-sm text-gray-500">{col.title}</div>
-            <div className="text-2xl font-bold text-gray-900">
-              {tasksByStatus[col.status]?.length || 0}
-            </div>
-          </Card>
-        ))}
+      {/* Filters */}
+      <div className="mb-6">
+        <TaskFilters
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          status={statusFilter}
+          onStatusChange={setStatusFilter}
+          priority={priorityFilter}
+          onPriorityChange={setPriorityFilter}
+          onClearFilters={handleClearFilters}
+        />
       </div>
 
-      {/* Kanban Board */}
+      {/* Task Stats (Kanban view only) */}
+      {viewMode === "kanban" && (
+        <div className="grid grid-cols-4 gap-4 mb-6">
+          {COLUMNS.map((col) => (
+            <Card key={col.status} padding="sm">
+              <div className="text-sm text-gray-500">{col.title}</div>
+              <div className="text-2xl font-bold text-gray-900">
+                {tasksByStatus[col.status]?.length || 0}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Content */}
       {tasks.length === 0 ? (
         <Card className="text-center py-12">
           <h3 className="text-lg font-medium text-gray-900 mb-2">No tasks found</h3>
           <p className="text-gray-600 mb-4">
-            Create tasks in your projects to see them here
+            {searchTerm || statusFilter !== undefined || priorityFilter !== undefined
+              ? "Try adjusting your filters"
+              : "Create tasks in your projects to see them here"}
           </p>
-          <Button onClick={() => window.location.href = "/projects"}>
-            Go to Projects
-          </Button>
+          {(searchTerm || statusFilter !== undefined || priorityFilter !== undefined) && (
+            <Button variant="secondary" onClick={handleClearFilters}>
+              Clear Filters
+            </Button>
+          )}
         </Card>
-      ) : (
+      ) : viewMode === "kanban" ? (
+        /* Kanban Board */
         <div className="flex gap-4 overflow-x-auto pb-4 flex-1">
           {COLUMNS.map((col) => (
             <KanbanColumn
@@ -333,6 +380,65 @@ export default function TasksPage() {
               onDrop={handleDrop}
             />
           ))}
+        </div>
+      ) : (
+        /* List View */
+        <div className="flex-1">
+          <Card>
+            <div className="space-y-2">
+              {tasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-gray-900 truncate">{task.title}</h4>
+                      {task.description && (
+                        <p className="text-sm text-gray-500 truncate">{task.description}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <Badge variant="neutral" size="sm">
+                      {projectMap.get(task.projectId) || "Unknown"}
+                    </Badge>
+                    {getPriorityBadge(task.priority)}
+                    <Badge
+                      variant={
+                        task.status === 3
+                          ? "success"
+                          : task.status === 1
+                          ? "warning"
+                          : "info"
+                      }
+                      size="sm"
+                    >
+                      {COLUMNS.find((c) => c.status === task.status)?.title || "Unknown"}
+                    </Badge>
+                    {task.dueDate && (
+                      <span className="text-xs text-gray-500 flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        {formatDate(task.dueDate)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* Pagination */}
+          <div className="mt-4">
+            <Pagination
+              currentPage={pageNumber}
+              totalPages={totalPages}
+              onPageChange={setPageNumber}
+              pageSize={pageSize}
+              onPageSizeChange={handlePageSizeChange}
+              totalItems={totalCount}
+            />
+          </div>
         </div>
       )}
     </div>

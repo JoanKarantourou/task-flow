@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+using TaskFlow.Application.DTOs;
 using TaskFlow.Application.Interfaces;
 using TaskFlow.Domain.Entities;
 using TaskFlow.Domain.Enums;
@@ -303,5 +304,86 @@ public class TaskRepository : GenericRepository<TaskItem>, ITaskRepository
                task.Project.OwnerId == userId ||
                task.Project.Members.Any(m => m.UserId == userId &&
                                             (m.Role == "Admin" || m.Role == "Owner"));
+    }
+
+    /// <summary>
+    /// Retrieves tasks with filtering, sorting, and pagination.
+    /// Only returns tasks from projects the user has access to.
+    /// </summary>
+    public async Task<(IReadOnlyList<TaskItem> Items, int TotalCount)> GetTasksPagedAsync(
+        TaskFilterParameters parameters,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        // Start with base query - only tasks from projects user has access to
+        var query = _dbSet
+            .Include(t => t.Project)
+                .ThenInclude(p => p.Members)
+            .Where(t => t.Project.OwnerId == userId ||
+                       t.Project.Members.Any(m => m.UserId == userId));
+
+        // Apply search filter
+        if (!string.IsNullOrWhiteSpace(parameters.SearchTerm))
+        {
+            var searchTerm = parameters.SearchTerm.ToLower();
+            query = query.Where(t => t.Title.ToLower().Contains(searchTerm) ||
+                                    (t.Description != null && t.Description.ToLower().Contains(searchTerm)));
+        }
+
+        // Apply status filter
+        if (parameters.Status.HasValue)
+        {
+            query = query.Where(t => t.Status == parameters.Status.Value);
+        }
+
+        // Apply priority filter
+        if (parameters.Priority.HasValue)
+        {
+            query = query.Where(t => t.Priority == parameters.Priority.Value);
+        }
+
+        // Apply project filter
+        if (parameters.ProjectId.HasValue)
+        {
+            query = query.Where(t => t.ProjectId == parameters.ProjectId.Value);
+        }
+
+        // Apply assignee filter
+        if (parameters.AssigneeId.HasValue)
+        {
+            query = query.Where(t => t.AssigneeId == parameters.AssigneeId.Value);
+        }
+
+        // Get total count before pagination
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        // Apply sorting
+        query = parameters.SortBy?.ToLower() switch
+        {
+            "title" => parameters.SortDescending
+                ? query.OrderByDescending(t => t.Title)
+                : query.OrderBy(t => t.Title),
+            "priority" => parameters.SortDescending
+                ? query.OrderByDescending(t => t.Priority)
+                : query.OrderBy(t => t.Priority),
+            "status" => parameters.SortDescending
+                ? query.OrderByDescending(t => t.Status)
+                : query.OrderBy(t => t.Status),
+            "duedate" => parameters.SortDescending
+                ? query.OrderByDescending(t => t.DueDate)
+                : query.OrderBy(t => t.DueDate),
+            _ => parameters.SortDescending
+                ? query.OrderByDescending(t => t.CreatedAt)
+                : query.OrderBy(t => t.CreatedAt)
+        };
+
+        // Apply pagination
+        var items = await query
+            .Include(t => t.Assignee)
+            .Skip((parameters.PageNumber - 1) * parameters.PageSize)
+            .Take(parameters.PageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
     }
 }

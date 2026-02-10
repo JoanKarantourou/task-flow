@@ -1,3 +1,4 @@
+using TaskFlow.Application.DTOs;
 using TaskFlow.Domain.Entities;
 using TaskFlow.Domain.Enums;
 using TaskStatus = TaskFlow.Domain.Enums.TaskStatus;
@@ -226,7 +227,20 @@ public interface ITaskRepository : IGenericRepository<TaskItem>
     /// }
     /// </example>
     Task<bool> UserCanModifyTaskAsync(
-        Guid taskId, 
-        Guid userId, 
+        Guid taskId,
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves tasks with filtering, sorting, and pagination.
+    /// Only returns tasks from projects the user has access to.
+    /// </summary>
+    /// <param name="parameters">Filter, sort, and pagination parameters</param>
+    /// <param name="userId">The user requesting the tasks (for access control)</param>
+    /// <param name="cancellationToken">Token to cancel the operation</param>
+    /// <returns>Tuple with paginated task items and total count</returns>
+    Task<(IReadOnlyList<TaskItem> Items, int TotalCount)> GetTasksPagedAsync(
+        TaskFilterParameters parameters,
+        Guid userId,
         CancellationToken cancellationToken = default);
 }

@@ -12,6 +12,7 @@ import {
   TaskStatus,
   type TaskFilterParams,
   type ApiListResponse,
+  type PagedResult,
 } from "../types";
 
 // ============================================
@@ -67,12 +68,11 @@ class TaskService {
   }
 
   /**
-   * Get all tasks across all projects (with optional filtering)
-   * Note: This endpoint may not be implemented on backend yet
-   * @param filters - Optional filter parameters
-   * @returns Promise with array of tasks
+   * Get all tasks across all projects (with optional filtering and pagination)
+   * @param filters - Optional filter and pagination parameters
+   * @returns Promise with paginated tasks
    */
-  async getAllTasks(filters?: TaskFilterParams): Promise<Task[]> {
+  async getAllTasks(filters?: TaskFilterParams): Promise<PagedResult<Task>> {
     try {
       console.log("📋 Fetching all tasks");
 
@@ -86,15 +86,22 @@ class TaskService {
         queryParams.append("priority", filters.priority.toString());
       if (filters?.assigneeId)
         queryParams.append("assigneeId", filters.assigneeId);
-      if (filters?.search) queryParams.append("search", filters.search);
+      if (filters?.search) queryParams.append("searchTerm", filters.search);
+      if (filters?.pageNumber)
+        queryParams.append("pageNumber", filters.pageNumber.toString());
+      if (filters?.pageSize)
+        queryParams.append("pageSize", filters.pageSize.toString());
+      if (filters?.sortBy) queryParams.append("sortBy", filters.sortBy);
+      if (filters?.sortOrder)
+        queryParams.append("sortDescending", (filters.sortOrder === "desc").toString());
 
-      // GET /api/tasks?projectId=...&status=...
+      // GET /api/tasks?searchTerm=...&status=...
       const queryString = queryParams.toString();
-      const response = await apiClient.get<Task[]>(
+      const response = await apiClient.get<PagedResult<Task>>(
         `/tasks${queryString ? `?${queryString}` : ""}`
       );
 
-      console.log(`✅ Found ${response.data.length} tasks`);
+      console.log(`✅ Found ${response.data.items.length} of ${response.data.totalCount} tasks`);
       return response.data;
     } catch (error) {
       console.error("❌ Failed to fetch tasks:", getErrorMessage(error));

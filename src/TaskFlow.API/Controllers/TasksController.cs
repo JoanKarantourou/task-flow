@@ -1,9 +1,11 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TaskFlow.Application.DTOs;
 using TaskFlow.Application.Features.Tasks.Commands.CreateTask;
 using TaskFlow.Application.Features.Tasks.Commands.DeleteTask;
 using TaskFlow.Application.Features.Tasks.Commands.UpdateTask;
+using TaskFlow.Application.Features.Tasks.Queries.GetAllTasks;
 using TaskFlow.Application.Features.Tasks.Queries.GetTaskById;
 using TaskFlow.Application.Features.Tasks.Queries.GetTasksByProject;
 
@@ -25,6 +27,31 @@ public class TasksController : ControllerBase
     {
         _mediator = mediator;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Gets all tasks with filtering and pagination.
+    /// Returns tasks from projects the user has access to.
+    /// </summary>
+    /// <param name="filters">Filter and pagination parameters</param>
+    /// <response code="200">Paginated tasks returned</response>
+    /// <response code="401">Not authenticated</response>
+    [HttpGet]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetAllTasks([FromQuery] TaskFilterParameters filters)
+    {
+        try
+        {
+            var query = new GetAllTasksQuery { Parameters = filters };
+            var result = await _mediator.Send(query);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning("Unauthorized access to tasks: {Message}", ex.Message);
+            return Forbid();
+        }
     }
 
     /// <summary>

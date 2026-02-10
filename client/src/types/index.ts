@@ -325,3 +325,40 @@ export interface TaskFilterParams extends PaginationParams {
   assigneeId?: string;
   search?: string;
 }
+
+// ============================================
+// PAGINATION DTOs
+// ============================================
+
+/**
+ * Generic paged result from API
+ * Matches C#: TaskFlow.Application.DTOs.PagedResult<T>
+ */
+export interface PagedResult<T> {
+  items: T[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+}
+
+// ============================================
+// DASHBOARD DTOs
+// ============================================
+
+/**
+ * Dashboard statistics DTO
+ * Matches C#: TaskFlow.Application.DTOs.DashboardStatsDto
+ */
+export interface DashboardStats {
+  totalProjects: number;
+  activeProjects: number;
+  totalTasks: number;
+  pendingTasks: number;
+  completedTasks: number;
+  overdueTasks: number;
+  tasksByStatus: Record<string, number>;
+  tasksByPriority: Record<string, number>;
+}

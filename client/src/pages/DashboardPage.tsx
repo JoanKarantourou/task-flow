@@ -5,53 +5,38 @@
 // Uses React Query for data fetching
 
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import projectService from "../services/projectService";
-import taskService from "../services/taskService";
+import dashboardService from "../services/dashboardService";
 import Card from "../components/ui/Card";
-import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
-import { ProjectStatus, TaskStatus } from "../types";
+import TaskStatusChart from "../components/charts/TaskStatusChart";
+import TaskPriorityChart from "../components/charts/TaskPriorityChart";
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
-  // Fetch projects
-  const { data: projects = [], isLoading: isLoadingProjects } = useQuery({
-    queryKey: ["projects"],
-    queryFn: () => projectService.getMyProjects(),
+  // Fetch dashboard stats
+  const { data: stats, isLoading } = useQuery({
+    queryKey: ["dashboard-stats"],
+    queryFn: () => dashboardService.getStats(),
   });
 
-  // Fetch tasks (will show error in console until backend endpoint exists)
-  const { data: allTasks = [] } = useQuery({
-    queryKey: ["tasks"],
-    queryFn: () => taskService.getAllTasks(),
-    retry: 0, // Don't retry if endpoint doesn't exist yet
-  });
-
-  // Calculate stats
-  const activeProjects = projects.filter(
-    (p) => p.status === ProjectStatus.Active
-  ).length;
-
-  const pendingTasks = allTasks.filter(
-    (t) =>
-      t.status === TaskStatus.Todo || t.status === TaskStatus.InProgress
-  ).length;
-
-  const completedTasks = allTasks.filter(
-    (t) => t.status === TaskStatus.Done
-  ).length;
-
-  // Get recent tasks (last 10)
-  const recentTasks = allTasks.slice(0, 10);
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       {/* Welcome Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">
-          Welcome back, {user?.firstName}! 👋
+          Welcome back, {user?.firstName}!
         </h1>
         <p className="text-gray-600 mt-1">
           Here's what's happening with your projects today.
@@ -59,13 +44,13 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Active Projects</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">
-                {isLoadingProjects ? "..." : activeProjects}
+                {stats?.activeProjects ?? 0}
               </p>
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -91,7 +76,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-sm text-gray-600">Pending Tasks</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">
-                {pendingTasks}
+                {stats?.pendingTasks ?? 0}
               </p>
             </div>
             <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
@@ -117,7 +102,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-sm text-gray-600">Completed</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">
-                {completedTasks}
+                {stats?.completedTasks ?? 0}
               </p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
@@ -137,61 +122,65 @@ export default function DashboardPage() {
             </div>
           </div>
         </Card>
+
+        <Card>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Overdue Tasks</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1">
+                {stats?.overdueTasks ?? 0}
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+              <svg
+                className="w-6 h-6 text-red-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+          </div>
+        </Card>
       </div>
 
-      {/* Recent Tasks */}
-      <Card title="Recent Tasks">
-        {recentTasks.length > 0 ? (
-          <div className="space-y-3">
-            {recentTasks.map((task) => (
-              <div
-                key={task.id}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 rounded"
-                    checked={task.status === TaskStatus.Done}
-                    readOnly
-                  />
-                  <span
-                    className={`text-gray-900 ${
-                      task.status === TaskStatus.Done ? "line-through" : ""
-                    }`}
-                  >
-                    {task.title}
-                  </span>
-                </div>
-                <Badge
-                  variant={
-                    task.status === TaskStatus.Done
-                      ? "success"
-                      : task.status === TaskStatus.InProgress
-                      ? "warning"
-                      : "info"
-                  }
-                >
-                  {task.status === TaskStatus.Done
-                    ? "Done"
-                    : task.status === TaskStatus.InProgress
-                    ? "In Progress"
-                    : task.status === TaskStatus.InReview
-                    ? "In Review"
-                    : "To Do"}
-                </Badge>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-8 text-gray-500">
-            <p>No tasks yet. Create your first task to get started!</p>
-          </div>
-        )}
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card title="Tasks by Status">
+          {stats?.tasksByStatus ? (
+            <TaskStatusChart data={stats.tasksByStatus} />
+          ) : (
+            <div className="h-64 flex items-center justify-center text-gray-500">
+              No data available
+            </div>
+          )}
+        </Card>
 
-        <div className="mt-4">
-          <Button variant="ghost" fullWidth>
-            View All Tasks →
+        <Card title="Tasks by Priority">
+          {stats?.tasksByPriority ? (
+            <TaskPriorityChart data={stats.tasksByPriority} />
+          ) : (
+            <div className="h-64 flex items-center justify-center text-gray-500">
+              No data available
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Quick Actions */}
+      <Card title="Quick Actions">
+        <div className="flex flex-wrap gap-4">
+          <Button onClick={() => navigate("/projects")}>
+            View Projects
+          </Button>
+          <Button variant="secondary" onClick={() => navigate("/tasks")}>
+            View All Tasks
           </Button>
         </div>
       </Card>
