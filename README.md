@@ -99,6 +99,21 @@ dotnet ef migrations add <MigrationName> \
   --startup-project src/TaskFlow.API
 ```
 
+## Testing
+
+The project includes a comprehensive test suite using **xUnit**, **Moq**, **FluentAssertions**, and **EF Core InMemory**.
+
+```bash
+dotnet test tests/TaskFlow.Tests
+```
+
+| Category | Tests | Coverage |
+|----------|-------|----------|
+| **Validators** | 32 | RegisterCommand, LoginCommand, CreateTaskCommand |
+| **Command Handlers** | 17 | Auth, Task CRUD, Project CRUD, permission checks, event publishing |
+| **Services** | 6 | AuthService (register, login, duplicate email, password mismatch) |
+| **Domain** | 8 | Entity defaults, BaseEntity, navigation collections |
+
 ## Project Structure
 
 ```
@@ -133,6 +148,12 @@ task-flow/
       Controllers/                # Auth, Projects, Tasks, Comments, Users
       Hubs/                       # NotificationHub (SignalR)
       Middleware/                  # ExceptionHandlingMiddleware
+  tests/
+    TaskFlow.Tests/
+      Validators/                 # FluentValidation rule tests
+      Handlers/                   # CQRS command handler tests (Moq)
+      Services/                   # AuthService integration tests (InMemory DB)
+      Domain/                     # Domain entity unit tests
   client/
     src/
       components/                 # UI components (Button, Card, Modal, etc.) + layout
